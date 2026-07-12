@@ -1,8 +1,13 @@
+class ShareTemplateDefaults {
+  static const standard = '{titulo}\n{data}\n\n{nomes}';
+}
+
 class ShareFormatter {
   String format({
     required String title,
     required DateTime date,
     required Iterable<String> names,
+    String template = ShareTemplateDefaults.standard,
   }) {
     final grouped = <String, ({String display, int count})>{};
     for (final rawName in names) {
@@ -29,7 +34,10 @@ class ShareFormatter {
               : entry.display,
         )
         .join('\n');
-    return '$title\n$dateText\n\n$body';
+    return template
+        .replaceAll('{titulo}', title)
+        .replaceAll('{data}', dateText)
+        .replaceAll('{nomes}', body);
   }
 
   String _normalize(String value) =>

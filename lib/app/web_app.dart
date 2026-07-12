@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-Widget buildApp() => const EncomendasWebApp();
+Widget buildApp() => const EstafetaWebApp();
 
-class EncomendasWebApp extends StatelessWidget {
-  const EncomendasWebApp({super.key});
+class EstafetaWebApp extends StatelessWidget {
+  const EstafetaWebApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Encomendas • Gestão',
+      title: 'Estafeta • Gestão',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff315c46)),

@@ -28,7 +28,10 @@ class OcrService {
     script: TextRecognitionScript.latin,
   );
 
-  Future<OcrResult> process(String imagePath) async {
+  Future<OcrResult> process(
+    String imagePath, {
+    Iterable<String> knownNames = const [],
+  }) async {
     final bytes = await File(imagePath).readAsBytes();
     final croppedBytes = await Isolate.run(() => _cropGuide(bytes));
     final cropPath = imagePath.replaceFirst(
@@ -41,13 +44,16 @@ class OcrService {
       InputImage.fromFilePath(cropPath),
     );
     var rawText = cropText.text;
-    var extraction = _extractor.extract(rawText);
+    var extraction = _extractor.extract(rawText, knownNames: knownNames);
 
     if (extraction.confidence < 0.7) {
       final fullText = await _recognizer.processImage(
         InputImage.fromFilePath(imagePath),
       );
-      final fullExtraction = _extractor.extract(fullText.text);
+      final fullExtraction = _extractor.extract(
+        fullText.text,
+        knownNames: knownNames,
+      );
       if (fullExtraction.confidence > extraction.confidence) {
         rawText = fullText.text;
         extraction = fullExtraction;

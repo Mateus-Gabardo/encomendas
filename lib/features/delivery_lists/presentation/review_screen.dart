@@ -2,14 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../capture/presentation/capture_bloc.dart';
+import '../data/local_delivery_repository.dart';
 import '../domain/delivery_models.dart';
-import '../domain/share_formatter.dart';
+import 'export_preview_screen.dart';
 
 class ReviewScreen extends StatelessWidget {
-  const ReviewScreen({super.key});
+  const ReviewScreen({super.key, required this.repository});
+
+  final LocalDeliveryRepository repository;
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +67,12 @@ class ReviewScreen extends StatelessWidget {
             child: FilledButton.icon(
               onPressed:
                   list.items.any((item) => item.name?.trim().isNotEmpty == true)
-                  ? () => _share(context, list)
+                  ? () => _previewExport(context, list)
                   : null,
-              icon: const Icon(Icons.share),
+              icon: const Icon(Icons.article_outlined),
               label: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
-                child: Text('Compartilhar lista'),
+                child: Text('Revisar texto'),
               ),
             ),
           ),
@@ -115,20 +117,11 @@ class ReviewScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _share(BuildContext context, DeliveryList list) async {
-    final text = ShareFormatter().format(
-      title: list.title,
-      date: list.createdAt,
-      names: list.items.map((item) => item.name ?? ''),
-    );
-    final box = context.findRenderObject() as RenderBox?;
-    await SharePlus.instance.share(
-      ShareParams(
-        text: text,
-        title: list.title,
-        sharePositionOrigin: box == null
-            ? null
-            : box.localToGlobal(Offset.zero) & box.size,
+  Future<void> _previewExport(BuildContext context, DeliveryList list) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ExportPreviewScreen(list: list, repository: repository),
       ),
     );
   }

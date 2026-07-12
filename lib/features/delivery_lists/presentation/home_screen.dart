@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../data/local_delivery_repository.dart';
 import '../domain/delivery_models.dart';
+import '../domain/share_formatter.dart';
 import 'delivery_flow_screen.dart';
+
+String _formatDateTime(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}/'
+    '${value.month.toString().padLeft(2, '0')}/${value.year} '
+    '${value.hour.toString().padLeft(2, '0')}:'
+    '${value.minute.toString().padLeft(2, '0')}';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.repository});
@@ -35,13 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await widget.repository.deleteExpiredPhotos();
     final lists = await widget.repository.loadLists();
     final retention = await widget.repository.getRetentionDays();
-    if (mounted) {
-      setState(() {
-        _lists = lists;
-        _retentionDays = retention;
-        _loading = false;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _lists = lists;
+      _retentionDays = retention;
+      _loading = false;
+    });
   }
 
   Future<void> _newList() async {
@@ -59,6 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     await widget.repository.saveList(list);
     if (!mounted) return;
+    await _openFlow(list);
+  }
+
+  Future<void> _openFlow(DeliveryList list, {bool reviewOnly = false}) async {
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -66,9 +76,35 @@ class _HomeScreenState extends State<HomeScreen> {
           list: list,
           repository: widget.repository,
           retentionDays: _retentionDays,
+          reviewOnly: reviewOnly,
         ),
       ),
     );
+    await _load();
+  }
+
+  Future<void> _deleteList(DeliveryList list) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir lista?'),
+        content: Text(
+          'A lista "${list.title}" e suas fotos salvas serão removidas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await widget.repository.deleteList(list.id);
     await _load();
   }
 
@@ -115,10 +151,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _ListsPage(
         lists: _lists,
         loading: _loading,
-        onOpenList: _openList,
+        onOpenList: (list) => _openFlow(list, reviewOnly: true),
+        onDeleteList: _deleteList,
       ),
-      _InsightsPage(lists: _lists),
+      _ExportLayoutPage(repository: widget.repository),
       _SettingsPage(
+        repository: widget.repository,
         retentionDays: _retentionDays,
         onChangeRetention: _changeRetention,
       ),
@@ -127,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: SafeArea(
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 240),
+          duration: const Duration(milliseconds: 220),
           child: pages[_currentTab],
         ),
       ),
@@ -138,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
+            label: 'Início',
           ),
           NavigationDestination(
             icon: Icon(Icons.list_alt_outlined),
@@ -146,9 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Listas',
           ),
           NavigationDestination(
-            icon: Icon(Icons.insights_outlined),
-            selectedIcon: Icon(Icons.insights),
-            label: 'Resumo',
+            icon: Icon(Icons.article_outlined),
+            selectedIcon: Icon(Icons.article),
+            label: 'Layout',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
@@ -158,21 +196,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _openList(DeliveryList list) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => DeliveryFlowScreen(
-          list: list,
-          repository: widget.repository,
-          retentionDays: _retentionDays,
-          reviewOnly: true,
-        ),
-      ),
-    );
-    await _load();
   }
 }
 
@@ -195,170 +218,137 @@ class _HomeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalItems = lists.fold<int>(
       0,
-      (total, list) => total + list.items.length,
+      (sum, list) => sum + list.items.length,
     );
     final pending = lists.fold<int>(
       0,
-      (total, list) => total +
-          list.items
-              .where(
-                (item) =>
-                    item.status == ParcelStatus.needsReview ||
-                    item.name == null ||
-                    item.name!.trim().isEmpty,
-              )
-              .length,
+      (sum, list) =>
+          sum +
+          list.items.where((item) {
+            final name = item.name?.trim() ?? '';
+            return name.isEmpty || item.status == ParcelStatus.needsReview;
+          }).length,
     );
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
       children: [
-        Text(
-          'Encomendas',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Capture etiquetas, confira nomes e compartilhe a lista pronta.',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 22),
-        _HeroCaptureCard(onNewList: onNewList),
-        const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(
-              child: _MetricCard(
-                color: const Color(0xffffd166),
-                icon: Icons.inventory_2_outlined,
-                label: 'Encomendas',
-                value: loading ? '...' : '$totalItems',
-              ),
-            ),
+            Image.asset('assets/branding/app_icon.png', width: 46, height: 46),
             const SizedBox(width: 12),
             Expanded(
-              child: _MetricCard(
-                color: const Color(0xffef476f),
-                icon: Icons.fact_check_outlined,
-                label: 'Pendentes',
-                value: loading ? '...' : '$pending',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                color: const Color(0xff06d6a0),
-                icon: Icons.playlist_add_check,
-                label: 'Listas',
-                value: loading ? '...' : '${lists.length}',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MetricCard(
-                color: const Color(0xff118ab2),
-                icon: Icons.auto_delete_outlined,
-                label: 'Fotos',
-                value: '$retentionDays dias',
+              child: Text(
+                'Estafeta',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 18),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.history)),
-            title: const Text('Continuar uma lista existente'),
-            subtitle: Text(
-              lists.isEmpty
-                  ? 'Nenhuma lista criada ainda'
-                  : '${lists.length} lista${lists.length == 1 ? '' : 's'} disponiveis',
+        _StartCard(onNewList: onNewList),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricCard(
+                icon: Icons.inventory_2_outlined,
+                label: 'Itens',
+                value: loading ? '...' : '$totalItems',
+              ),
             ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: onOpenLists,
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                icon: Icons.warning_amber_outlined,
+                label: 'Revisar',
+                value: loading ? '...' : '$pending',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                icon: Icons.auto_delete_outlined,
+                label: 'Fotos',
+                value: '${retentionDays}d',
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 18),
+        _SectionHeader(
+          title: 'Recentes',
+          action: lists.isEmpty ? null : 'Ver listas',
+          onTap: onOpenLists,
+        ),
+        const SizedBox(height: 8),
+        if (lists.isEmpty)
+          const _EmptyCard(text: 'Crie a primeira lista para começar.')
+        else
+          ...lists
+              .take(3)
+              .map(
+                (list) => Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.local_shipping_outlined),
+                    title: Text(list.title),
+                    subtitle: Text(
+                      '${_formatDateTime(list.createdAt)} · ${list.items.length} encomendas',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: onOpenLists,
+                  ),
+                ),
+              ),
       ],
     );
   }
 }
 
-class _HeroCaptureCard extends StatelessWidget {
-  const _HeroCaptureCard({required this.onNewList});
+class _StartCard extends StatelessWidget {
+  const _StartCard({required this.onNewList});
 
   final VoidCallback onNewList;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: scheme.primary,
-      child: Container(
-        padding: const EdgeInsets.all(22),
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onNewList,
+      child: Ink(
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              scheme.primary,
-              const Color(0xff06d6a0),
-            ],
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            colors: [Color(0xff0d2c3d), Color(0xff113a3a)],
           ),
+          border: Border.all(color: scheme.primary.withValues(alpha: .32)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Row(
           children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .18),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.document_scanner_outlined,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: scheme.primary,
+              foregroundColor: Colors.black,
+              child: const Icon(Icons.add_a_photo_outlined, size: 30),
             ),
-            const SizedBox(height: 26),
-            Text(
-              'Nova rodada de entregas',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Abra a camera, fotografe em sequencia e revise os nomes sem sair do fluxo.',
-              style: TextStyle(color: Colors.white, height: 1.35),
-            ),
-            const SizedBox(height: 24),
-            Center(
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: scheme.primary,
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Nova lista',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                   ),
-                  onPressed: onNewList,
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text('Criar nova lista'),
-                ),
+                  SizedBox(height: 4),
+                  Text('Abrir câmera e capturar etiquetas.'),
+                ],
               ),
             ),
+            const Icon(Icons.arrow_forward_ios, size: 18),
           ],
         ),
       ),
@@ -368,43 +358,33 @@ class _HeroCaptureCard extends StatelessWidget {
 
 class _MetricCard extends StatelessWidget {
   const _MetricCard({
-    required this.color,
     required this.icon,
     required this.label,
     required this.value,
   });
 
-  final Color color;
   final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: .18),
-              foregroundColor: color,
-              child: Icon(icon),
-            ),
-            const SizedBox(height: 14),
+            Icon(icon, color: scheme.secondary),
+            const SizedBox(height: 10),
             Text(
               value,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
@@ -417,157 +397,334 @@ class _ListsPage extends StatelessWidget {
     required this.lists,
     required this.loading,
     required this.onOpenList,
+    required this.onDeleteList,
   });
 
   final List<DeliveryList> lists;
   final bool loading;
   final ValueChanged<DeliveryList> onOpenList;
+  final ValueChanged<DeliveryList> onDeleteList;
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          floating: true,
-          title: const Text('Listas'),
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    if (loading) return const Center(child: CircularProgressIndicator());
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      children: [
+        Text(
+          'Listas',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
+        const SizedBox(height: 12),
         if (lists.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('Nenhuma lista criada ainda.'),
-              ),
-            ),
-          )
+          const _EmptyCard(text: 'Nenhuma lista criada.')
         else
-          SliverList.separated(
-            itemCount: lists.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final list = lists[index];
-              final pending = list.items
-                  .where(
-                    (item) =>
-                        item.status == ParcelStatus.needsReview ||
-                        item.name == null ||
-                        item.name!.trim().isEmpty,
-                  )
-                  .length;
-              return Padding(
-                padding: EdgeInsets.fromLTRB(16, index == 0 ? 8 : 0, 16, 0),
-                child: Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      child: const Icon(Icons.local_shipping_outlined),
-                    ),
-                    title: Text(list.title),
-                    subtitle: Text(
-                      '${list.items.length} encomenda${list.items.length == 1 ? '' : 's'}'
-                      '${pending > 0 ? ' · $pending pendente${pending == 1 ? '' : 's'}' : ''}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => onOpenList(list),
-                  ),
+          ...lists.map((list) {
+            final pending = list.items.where((item) {
+              final name = item.name?.trim() ?? '';
+              return name.isEmpty || item.status == ParcelStatus.needsReview;
+            }).length;
+            return Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  child: Icon(Icons.local_shipping_outlined),
                 ),
-              );
-            },
-          ),
+                title: Text(list.title),
+                subtitle: Text(
+                  '${_formatDateTime(list.createdAt)} · '
+                  '${list.items.length} encomenda${list.items.length == 1 ? '' : 's'}'
+                  '${pending > 0 ? ' · $pending revisar' : ''}',
+                ),
+                onTap: () => onOpenList(list),
+                trailing: IconButton(
+                  tooltip: 'Excluir lista',
+                  onPressed: () => onDeleteList(list),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
+            );
+          }),
       ],
     );
   }
 }
 
-class _InsightsPage extends StatelessWidget {
-  const _InsightsPage({required this.lists});
+class _ExportLayoutPage extends StatefulWidget {
+  const _ExportLayoutPage({required this.repository});
 
-  final List<DeliveryList> lists;
+  final LocalDeliveryRepository repository;
+
+  @override
+  State<_ExportLayoutPage> createState() => _ExportLayoutPageState();
+}
+
+class _ExportLayoutPageState extends State<_ExportLayoutPage> {
+  final _controller = TextEditingController();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    _controller.text = await widget.repository.getExportTemplate();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final lastList = lists.firstOrNull;
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
         Text(
-          'Resumo',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          'Layout',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 18),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.bolt_outlined)),
-            title: const Text('Ultima atividade'),
-            subtitle: Text(
-              lastList == null
-                  ? 'Ainda nao ha capturas'
-                  : '${lastList.title} com ${lastList.items.length} item${lastList.items.length == 1 ? '' : 's'}',
+        const SizedBox(height: 6),
+        const Text('Use {titulo}, {data} e {nomes}.'),
+        const SizedBox(height: 14),
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else ...[
+          TextField(
+            controller: _controller,
+            minLines: 7,
+            maxLines: null,
+            decoration: const InputDecoration(labelText: 'Modelo do texto'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Salvar layout'),
+          ),
+          TextButton(
+            onPressed: () => setState(
+              () => _controller.text = ShareTemplateDefaults.standard,
             ),
+            child: const Text('Restaurar padrão'),
           ),
-        ),
-        const SizedBox(height: 10),
-        const Card(
-          child: ListTile(
-            leading: CircleAvatar(child: Icon(Icons.center_focus_strong)),
-            title: Text('Proximo ajuste sugerido'),
-            subtitle: Text(
-              'Medir a velocidade do OCR no celular real para decidir se vale usar isolate dedicado.',
-            ),
-          ),
-        ),
+        ],
       ],
     );
+  }
+
+  Future<void> _save() async {
+    await widget.repository.setExportTemplate(_controller.text);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Layout salvo.')));
   }
 }
 
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
+    required this.repository,
     required this.retentionDays,
     required this.onChangeRetention,
   });
 
+  final LocalDeliveryRepository repository;
   final int retentionDays;
   final VoidCallback onChangeRetention;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
         Text(
           'Ajustes',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         Card(
           child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.auto_delete_outlined)),
-            title: const Text('Retencao das fotos'),
-            subtitle: Text('As imagens expiram em $retentionDays dias'),
+            leading: const Icon(Icons.auto_delete_outlined),
+            title: const Text('Retenção das fotos'),
+            subtitle: Text('$retentionDays dias'),
             trailing: const Icon(Icons.chevron_right),
             onTap: onChangeRetention,
           ),
         ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('Nomes conhecidos'),
+            subtitle: const Text('Editar base usada pelo OCR'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => KnownNamesScreen(repository: repository),
+              ),
+            ),
+          ),
+        ),
         const Card(
           child: ListTile(
-            leading: CircleAvatar(child: Icon(Icons.security_outlined)),
-            title: Text('OCR local'),
-            subtitle: Text('As fotos sao processadas no aparelho.'),
+            leading: Icon(Icons.security_outlined),
+            title: Text('Processamento local'),
+            subtitle: Text('OCR e fotos ficam no aparelho.'),
           ),
         ),
       ],
+    );
+  }
+}
+
+class KnownNamesScreen extends StatefulWidget {
+  const KnownNamesScreen({super.key, required this.repository});
+
+  final LocalDeliveryRepository repository;
+
+  @override
+  State<KnownNamesScreen> createState() => _KnownNamesScreenState();
+}
+
+class _KnownNamesScreenState extends State<KnownNamesScreen> {
+  final _controller = TextEditingController();
+  List<String> _names = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final names = await widget.repository.loadKnownNames();
+    if (!mounted) return;
+    setState(() {
+      _names = names;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save() async {
+    await widget.repository.saveKnownNames(_names);
+  }
+
+  Future<void> _add() async {
+    final value = _controller.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (value.isEmpty) return;
+    if (!_names.any((name) => name.toLowerCase() == value.toLowerCase())) {
+      setState(() => _names = [..._names, value]..sort());
+      await _save();
+    }
+    _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Nomes conhecidos')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(labelText: 'Nome'),
+                        onSubmitted: (_) => _add(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _add,
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_names.isEmpty)
+                  const _EmptyCard(text: 'Nenhum nome salvo ainda.')
+                else
+                  ..._names.map(
+                    (name) => Card(
+                      child: ListTile(
+                        title: Text(name),
+                        trailing: IconButton(
+                          onPressed: () async {
+                            setState(() {
+                              _names = _names
+                                  .where((item) => item != name)
+                                  .toList();
+                            });
+                            await _save();
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.action, this.onTap});
+
+  final String title;
+  final String? action;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        if (action != null) TextButton(onPressed: onTap, child: Text(action!)),
+      ],
+    );
+  }
+}
+
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(padding: const EdgeInsets.all(18), child: Text(text)),
     );
   }
 }
@@ -605,7 +762,7 @@ class _ListTypePickerState extends State<_ListTypePicker> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Qual é o tipo de entrega?',
+              'Tipo de entrega',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
@@ -618,7 +775,7 @@ class _ListTypePickerState extends State<_ListTypePicker> {
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Nome personalizado'),
+              title: const Text('Personalizado'),
               onTap: () => setState(() => _custom = true),
             ),
             if (_custom) ...[
@@ -630,10 +787,7 @@ class _ListTypePickerState extends State<_ListTypePicker> {
                 onSubmitted: (value) => value.trim().isEmpty
                     ? null
                     : Navigator.pop(context, value.trim()),
-                decoration: const InputDecoration(
-                  labelText: 'Nome da lista',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Nome da lista'),
               ),
               const SizedBox(height: 12),
               FilledButton(

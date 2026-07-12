@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -85,14 +83,15 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         );
         emit(state.copyWith(list: updated));
         await repository.saveList(updated);
+        await repository.addKnownName(event.name);
       case ParcelRemoved():
         final item = state.list.items
             .where((item) => item.id == event.itemId)
             .firstOrNull;
         if (item != null) {
           for (final path in [item.imagePath, item.cropPath]) {
-            if (path != null && await File(path).exists()) {
-              await File(path).delete();
+            if (path != null) {
+              await repository.deleteStoredFile(path);
             }
           }
         }
@@ -128,7 +127,11 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     emit(state.copyWith(list: updated));
 
     try {
-      final result = await ocrService.process(retainedPath);
+      final knownNames = await repository.loadKnownNames();
+      final result = await ocrService.process(
+        retainedPath,
+        knownNames: knownNames,
+      );
       item = item.copyWith(
         cropPath: result.cropPath,
         name: result.extraction.name,
@@ -146,6 +149,10 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     updated = _replaceItem(id, (_) => item);
     emit(state.copyWith(list: updated));
     await repository.saveList(updated);
+    final name = item.name?.trim();
+    if (name != null && name.isNotEmpty) {
+      await repository.addKnownName(name);
+    }
   }
 
   DeliveryList _replaceItem(

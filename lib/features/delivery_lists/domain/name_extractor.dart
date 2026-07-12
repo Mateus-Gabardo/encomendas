@@ -14,7 +14,15 @@ class NameExtractor {
     'cep',
   };
 
-  NameExtraction extract(String text) {
+  NameExtraction extract(
+    String text, {
+    Iterable<String> knownNames = const [],
+  }) {
+    final knownMatch = _matchKnownName(text, knownNames);
+    if (knownMatch != null) {
+      return NameExtraction(name: knownMatch, confidence: .98);
+    }
+
     final lines = text
         .split(RegExp(r'[\r\n]+'))
         .map(_clean)
@@ -92,6 +100,25 @@ class NameExtractor {
       .replaceAll(RegExp('[óòõôö]'), 'o')
       .replaceAll(RegExp('[úùûü]'), 'u')
       .replaceAll('ç', 'c');
+
+  String? _matchKnownName(String text, Iterable<String> knownNames) {
+    final normalizedText = _normalize(text).replaceAll(RegExp(r'\s+'), ' ');
+    String? best;
+    var bestLength = 0;
+    for (final name in knownNames) {
+      final cleaned = _clean(name);
+      if (!_looksLikeName(cleaned)) continue;
+      final normalizedName = _normalize(
+        cleaned,
+      ).replaceAll(RegExp(r'\s+'), ' ');
+      if (normalizedText.contains(normalizedName) &&
+          normalizedName.length > bestLength) {
+        best = _titleCase(cleaned);
+        bestLength = normalizedName.length;
+      }
+    }
+    return best;
+  }
 
   String _titleCase(String value) => value
       .toLowerCase()

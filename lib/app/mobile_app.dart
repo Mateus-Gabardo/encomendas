@@ -3,23 +3,30 @@ import 'package:flutter/material.dart';
 import '../features/delivery_lists/data/local_delivery_repository.dart';
 import '../features/delivery_lists/presentation/home_screen.dart';
 
-Widget buildApp() => const EncomendasMobileApp();
+Widget buildApp() => const EstafetaMobileApp();
 
-class EncomendasMobileApp extends StatelessWidget {
-  const EncomendasMobileApp({super.key});
+class EstafetaMobileApp extends StatelessWidget {
+  const EstafetaMobileApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Encomendas',
+      title: 'Estafeta',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff0f8b8d),
-          brightness: Brightness.light,
-        ),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: const Color(0xff25f4d0),
+              brightness: Brightness.dark,
+            ).copyWith(
+              primary: const Color(0xff25f4d0),
+              secondary: const Color(0xffffb15c),
+              tertiary: const Color(0xff36b8ff),
+              surface: const Color(0xff0b1621),
+              error: const Color(0xffff6b7a),
+            ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xfff6f7fb),
+        scaffoldBackgroundColor: const Color(0xff06111d),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
           elevation: 0,
@@ -27,9 +34,9 @@ class EncomendasMobileApp extends StatelessWidget {
         ),
         cardTheme: CardThemeData(
           elevation: 0,
-          color: Colors.white,
+          color: const Color(0xff101d2a),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(22),
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
@@ -42,14 +49,88 @@ class EncomendasMobileApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white,
+          fillColor: const Color(0xff142433),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
           ),
         ),
       ),
-      home: HomeScreen(repository: LocalDeliveryRepository()),
+      home: _AnimatedSplash(
+        child: HomeScreen(repository: LocalDeliveryRepository()),
+      ),
+    );
+  }
+}
+
+class _AnimatedSplash extends StatefulWidget {
+  const _AnimatedSplash({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AnimatedSplash> createState() => _AnimatedSplashState();
+}
+
+class _AnimatedSplashState extends State<_AnimatedSplash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..forward();
+    Future<void>.delayed(const Duration(milliseconds: 1300), () {
+      if (mounted) setState(() => _done = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_done) return widget.child;
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/branding/splash.png', fit: BoxFit.cover),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xff25f4d0).withValues(alpha: .20),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+          Center(
+            child: ScaleTransition(
+              scale: CurvedAnimation(
+                parent: _controller,
+                curve: Curves.easeOutBack,
+              ),
+              child: FadeTransition(
+                opacity: _controller,
+                child: Image.asset(
+                  'assets/branding/app_icon.png',
+                  width: 148,
+                  height: 148,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
