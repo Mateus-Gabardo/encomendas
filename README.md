@@ -39,6 +39,19 @@ As fotos não são gravadas em `DCIM`, `Pictures` nem em diretórios públicos d
 
 Nomes repetidos são agrupados no texto final, por exemplo `Mateus Gabardo (2)`.
 
+## Algoritmo de identificação de nomes
+
+O reconhecimento é local e segue esta ordem:
+
+1. A câmera exibe uma faixa de enquadramento. A imagem é salva e um recorte dessa faixa é criado em isolate para não travar a interface.
+2. O Google ML Kit executa OCR primeiro no recorte, porque ali deve estar o nome.
+3. O texto reconhecido é comparado com `known_names.json`. Se um nome conhecido aparecer no OCR, ele é escolhido com alta confiança. Essa lista cresce quando um nome é confirmado manualmente.
+4. Se não houver nome conhecido, o extrator analisa as linhas do OCR procurando padrões de nome: 2 a 6 palavras, sem códigos numéricos longos, com caracteres compatíveis com nomes.
+5. Linhas próximas de palavras de contexto como `destinatario`, `recebedor`, `cliente`, `endereco` e `cep` recebem pontuação maior.
+6. Linhas claramente técnicas ou de endereço, como `remetente`, `nota fiscal`, `danfe`, `chave de acesso`, `codigo`, `rua`, `cidade` e `complemento`, são ignoradas.
+7. Se a confiança no recorte for baixa, o OCR roda também na foto completa e o melhor resultado entre recorte e foto completa é usado.
+8. Na tela de captura, o usuário pode confirmar o nome em `Confirmo` para esconder o painel e seguir para a próxima foto, ou descartar a foto no botão `X`.
+
 ## Layout de exportação
 
 A aba “Layout” permite configurar o texto gerado com placeholders:

@@ -22,6 +22,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   bool _finishing = false;
   int _capturedCount = 0;
   String? _editingItemId;
+  String? _confirmedItemId;
   final _nameController = TextEditingController();
   final _nameFocusNode = FocusNode();
 
@@ -105,7 +106,11 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   void _syncLastItem(CaptureState state) {
     final latest = state.list.items.lastOrNull;
-    if (latest == null) return;
+    if (latest == null) {
+      _editingItemId = null;
+      _nameController.clear();
+      return;
+    }
     if (_editingItemId != latest.id || !_nameFocusNode.hasFocus) {
       _editingItemId = latest.id;
       _nameController.text = latest.name ?? '';
@@ -117,6 +122,18 @@ class _CaptureScreenState extends State<CaptureScreen>
     final name = _nameController.text.trim();
     if (itemId == null || name.isEmpty) return;
     context.read<CaptureBloc>().add(ParcelNameChanged(itemId, name));
+    setState(() => _confirmedItemId = itemId);
+    FocusScope.of(context).unfocus();
+  }
+
+  void _discardQuickPhoto() {
+    final itemId = _editingItemId;
+    if (itemId == null) return;
+    context.read<CaptureBloc>().add(ParcelRemoved(itemId));
+    setState(() {
+      _capturedCount = _capturedCount > 0 ? _capturedCount - 1 : 0;
+      _confirmedItemId = null;
+    });
     FocusScope.of(context).unfocus();
   }
 
@@ -176,9 +193,11 @@ class _CaptureScreenState extends State<CaptureScreen>
                 child: BlocBuilder<CaptureBloc, CaptureState>(
                   builder: (context, state) {
                     final latest = state.list.items.lastOrNull;
+                    final showPanel =
+                        latest != null && latest.id != _confirmedItemId;
                     return AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
-                      child: latest == null
+                      child: !showPanel
                           ? const _CaptureHintPanel()
                           : _QuickReviewPanel(
                               key: ValueKey(latest.id),
@@ -186,6 +205,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                               controller: _nameController,
                               focusNode: _nameFocusNode,
                               onSave: _saveQuickName,
+                              onDiscard: _discardQuickPhoto,
                             ),
                     );
                   },
@@ -371,12 +391,14 @@ class _QuickReviewPanel extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onSave,
+    required this.onDiscard,
   });
 
   final ParcelItem item;
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onSave;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -450,13 +472,32 @@ class _QuickReviewPanel extends StatelessWidget {
                     ),
                     onSubmitted: (_) => onSave(),
                   ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: processing ? null : onSave,
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Proximo'),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Tooltip(
+                        message: 'Descartar foto',
+                        child: IconButton.outlined(
+                          onPressed: processing ? null : onDiscard,
+                          icon: const Icon(Icons.close),
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: processing ? null : onSave,
+                          icon: const Icon(Icons.check),
+                          label: const Text('Confirmo'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Confirmo aceita o nome e libera a próxima foto.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

@@ -114,17 +114,24 @@ class _AnimatedSplashState extends State<_AnimatedSplash>
             ),
           ),
           Center(
-            child: ScaleTransition(
-              scale: CurvedAnimation(
+            child: FadeTransition(
+              opacity: CurvedAnimation(
                 parent: _controller,
-                curve: Curves.easeOutBack,
+                curve: Curves.easeOut,
               ),
-              child: FadeTransition(
-                opacity: _controller,
-                child: Image.asset(
-                  'assets/branding/app_icon.png',
-                  width: 148,
-                  height: 148,
+              child: Text(
+                'Estafeta',
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  shadows: const [
+                    Shadow(
+                      color: Color(0xaa25f4d0),
+                      blurRadius: 22,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
                 ),
               ),
             ),
