@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../data/local_delivery_repository.dart';
@@ -10,6 +11,24 @@ String _formatDateTime(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}/${value.year} '
     '${value.hour.toString().padLeft(2, '0')}:'
     '${value.minute.toString().padLeft(2, '0')}';
+
+String _formatMonth(DateTime value) {
+  const months = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
+  ];
+  return '${months[value.month - 1]} ${value.year}';
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -33,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _knownNamesCount = 0;
   bool _loading = true;
   int _currentTab = 0;
+  _ListFilter _listFilter = _ListFilter.all;
 
   static const _presets = [
     'Entregas Mercado Livre',
@@ -148,6 +168,31 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _retentionDays = selected);
   }
 
+  void _openLists({_ListFilter filter = _ListFilter.all}) {
+    setState(() {
+      _listFilter = filter;
+      _currentTab = 1;
+    });
+  }
+
+  void _openKnownNames() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => KnownNamesScreen(repository: widget.repository),
+      ),
+    ).then((_) => _load());
+  }
+
+  void _openMetricsPanel() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => MetricsPanelScreen(lists: _lists),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -157,11 +202,16 @@ class _HomeScreenState extends State<HomeScreen> {
         knownNamesCount: _knownNamesCount,
         onNewList: _newList,
         onOpenList: (list) => _openFlow(list, reviewOnly: true),
-        onOpenLists: () => setState(() => _currentTab = 1),
+        onOpenLists: () => _openLists(),
+        onOpenPeople: _openKnownNames,
+        onOpenSentLists: () => _openLists(filter: _ListFilter.sent),
+        onOpenMetrics: _openMetricsPanel,
       ),
       _ListsPage(
         lists: _lists,
         loading: _loading,
+        filter: _listFilter,
+        onFilterChanged: (filter) => setState(() => _listFilter = filter),
         onOpenList: (list) => _openFlow(list, reviewOnly: true),
         onDeleteList: _deleteList,
       ),
@@ -212,6 +262,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+enum _ListFilter {
+  all('Todas'),
+  sent('Enviadas'),
+  notSent('Não enviadas');
+
+  const _ListFilter(this.label);
+
+  final String label;
+}
+
 class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
     required this.lists,
@@ -220,6 +280,9 @@ class _HomeDashboard extends StatelessWidget {
     required this.onNewList,
     required this.onOpenList,
     required this.onOpenLists,
+    required this.onOpenPeople,
+    required this.onOpenSentLists,
+    required this.onOpenMetrics,
   });
 
   final List<DeliveryList> lists;
@@ -228,6 +291,9 @@ class _HomeDashboard extends StatelessWidget {
   final VoidCallback onNewList;
   final ValueChanged<DeliveryList> onOpenList;
   final VoidCallback onOpenLists;
+  final VoidCallback onOpenPeople;
+  final VoidCallback onOpenSentLists;
+  final VoidCallback onOpenMetrics;
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +313,11 @@ class _HomeDashboard extends StatelessWidget {
                 ),
               ),
             ),
+            IconButton.filledTonal(
+              tooltip: 'Painel de métricas',
+              onPressed: onOpenMetrics,
+              icon: const Icon(Icons.insights_outlined),
+            ),
           ],
         ),
         const SizedBox(height: 18),
@@ -259,6 +330,7 @@ class _HomeDashboard extends StatelessWidget {
                 icon: Icons.badge_outlined,
                 label: 'Pessoas',
                 value: loading ? '...' : '$knownNamesCount',
+                onTap: onOpenPeople,
               ),
             ),
             const SizedBox(width: 10),
@@ -267,6 +339,7 @@ class _HomeDashboard extends StatelessWidget {
                 icon: Icons.list_alt_outlined,
                 label: 'Listas',
                 value: loading ? '...' : '${lists.length}',
+                onTap: onOpenLists,
               ),
             ),
             const SizedBox(width: 10),
@@ -275,6 +348,7 @@ class _HomeDashboard extends StatelessWidget {
                 icon: Icons.outgoing_mail,
                 label: 'Enviadas',
                 value: loading ? '...' : '$sentLists',
+                onTap: onOpenSentLists,
               ),
             ),
           ],
@@ -381,31 +455,37 @@ class _MetricCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: scheme.secondary),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: scheme.secondary),
+              const SizedBox(height: 10),
+              Text(
+                value,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
         ),
       ),
     );
@@ -416,18 +496,27 @@ class _ListsPage extends StatelessWidget {
   const _ListsPage({
     required this.lists,
     required this.loading,
+    required this.filter,
+    required this.onFilterChanged,
     required this.onOpenList,
     required this.onDeleteList,
   });
 
   final List<DeliveryList> lists;
   final bool loading;
+  final _ListFilter filter;
+  final ValueChanged<_ListFilter> onFilterChanged;
   final ValueChanged<DeliveryList> onOpenList;
   final ValueChanged<DeliveryList> onDeleteList;
 
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
+    final filteredLists = switch (filter) {
+      _ListFilter.all => lists,
+      _ListFilter.sent => lists.where((list) => list.isSent).toList(),
+      _ListFilter.notSent => lists.where((list) => !list.isSent).toList(),
+    };
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
@@ -438,10 +527,30 @@ class _ListsPage extends StatelessWidget {
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _ListFilter.values
+                .map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(item.label),
+                      selected: filter == item,
+                      onSelected: (_) => onFilterChanged(item),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (lists.isEmpty)
           const _EmptyCard(text: 'Nenhuma lista criada.')
+        else if (filteredLists.isEmpty)
+          _EmptyCard(text: 'Nenhuma lista em "${filter.label}".')
         else
-          ...lists.map((list) {
+          ...filteredLists.map((list) {
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(
@@ -473,6 +582,516 @@ class _ListsPage extends StatelessWidget {
             );
           }),
       ],
+    );
+  }
+}
+
+class MetricsPanelScreen extends StatefulWidget {
+  const MetricsPanelScreen({super.key, required this.lists});
+
+  final List<DeliveryList> lists;
+
+  @override
+  State<MetricsPanelScreen> createState() => _MetricsPanelScreenState();
+}
+
+class _MetricsPanelScreenState extends State<MetricsPanelScreen> {
+  late DateTime _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedMonth = DateTime(now.year, now.month);
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
+    });
+  }
+
+  void _selectMonth(DateTime month) {
+    setState(() => _selectedMonth = DateTime(month.year, month.month));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final availableMonths = _availableMonths(widget.lists, _selectedMonth);
+    final monthLists = widget.lists
+        .where(
+          (list) =>
+              list.createdAt.year == _selectedMonth.year &&
+              list.createdAt.month == _selectedMonth.month,
+        )
+        .toList();
+    final sentThisMonth = widget.lists
+        .where(
+          (list) =>
+              list.sentAt != null &&
+              list.sentAt!.year == _selectedMonth.year &&
+              list.sentAt!.month == _selectedMonth.month,
+        )
+        .length;
+    final totalItems = widget.lists.fold<int>(
+      0,
+      (total, list) => total + list.items.length,
+    );
+    final monthItems = monthLists.fold<int>(
+      0,
+      (total, list) => total + list.items.length,
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Painel')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        children: [
+          Text(
+            'Resumo operacional',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Indicadores simples para acompanhar o volume sem sobrecarregar a tela inicial.',
+          ),
+          const SizedBox(height: 16),
+          _MonthSelector(
+            month: _selectedMonth,
+            availableMonths: availableMonths,
+            onPrevious: () => _changeMonth(-1),
+            onNext: () => _changeMonth(1),
+            onSelected: _selectMonth,
+          ),
+          const SizedBox(height: 16),
+          _MetricSummaryTile(
+            icon: Icons.inventory_2_outlined,
+            title: 'Encomendas registradas',
+            value: '$totalItems',
+            subtitle: '$monthItems neste mês',
+          ),
+          _MetricSummaryTile(
+            icon: Icons.list_alt_outlined,
+            title: 'Listas criadas',
+            value: '${widget.lists.length}',
+            subtitle: '${monthLists.length} neste mês',
+          ),
+          _MetricSummaryTile(
+            icon: Icons.outgoing_mail,
+            title: 'Listas enviadas',
+            value: '${widget.lists.where((list) => list.isSent).length}',
+            subtitle: '$sentThisMonth neste mês',
+          ),
+          const SizedBox(height: 12),
+          _DeliveryTypeChart(month: _selectedMonth, lists: monthLists),
+        ],
+      ),
+    );
+  }
+
+  List<DateTime> _availableMonths(List<DeliveryList> lists, DateTime selected) {
+    final months = {
+      DateTime(selected.year, selected.month),
+      for (final list in lists)
+        DateTime(list.createdAt.year, list.createdAt.month),
+    }.toList()..sort((a, b) => b.compareTo(a));
+    return months.take(8).toList();
+  }
+}
+
+class _MonthSelector extends StatelessWidget {
+  const _MonthSelector({
+    required this.month,
+    required this.availableMonths,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onSelected,
+  });
+
+  final DateTime month;
+  final List<DateTime> availableMonths;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final ValueChanged<DateTime> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Mês anterior',
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Expanded(
+                  child: Text(
+                    _formatMonth(month),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Próximo mês',
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final availableMonth in availableMonths)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(_formatShortMonth(availableMonth)),
+                        selected:
+                            availableMonth.year == month.year &&
+                            availableMonth.month == month.month,
+                        onSelected: (_) => onSelected(availableMonth),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricSummaryTile extends StatelessWidget {
+  const _MetricSummaryTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(child: Icon(icon)),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: Text(
+          value,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryTypeChart extends StatelessWidget {
+  const _DeliveryTypeChart({required this.month, required this.lists});
+
+  final DateTime month;
+  final List<DeliveryList> lists;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalsByType = <String, int>{};
+    final countsByDayAndType = <int, Map<String, int>>{};
+    for (final list in lists) {
+      totalsByType.update(
+        list.title,
+        (value) => value + list.items.length,
+        ifAbsent: () => list.items.length,
+      );
+      countsByDayAndType
+          .putIfAbsent(list.createdAt.day, () => <String, int>{})
+          .update(
+            list.title,
+            (value) => value + list.items.length,
+            ifAbsent: () => list.items.length,
+          );
+    }
+    final entries =
+        totalsByType.entries.where((entry) => entry.value > 0).toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    final visibleEntries = entries.take(5).toList();
+    final visibleTypes = visibleEntries.map((entry) => entry.key).toList();
+    final maxValue = countsByDayAndType.values.fold<int>(0, (max, dayCounts) {
+      for (final type in visibleTypes) {
+        final value = dayCounts[type] ?? 0;
+        if (value > max) max = value;
+      }
+      return max;
+    });
+    final colors = _chartColors(context);
+    final daysWithData = countsByDayAndType.keys.toList()..sort();
+    final chartWidth = daysWithData.length * (visibleTypes.length * 12 + 32);
+
+    return _ChartCard(
+      title: 'Encomendas por dia e tipo em ${_formatMonth(month)}',
+      empty: entries.isEmpty,
+      height: 380,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: chartWidth < 360 ? 360 : chartWidth.toDouble(),
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    groupsSpace: 14,
+                    maxY: (maxValue == 0 ? 1 : maxValue * 1.2).toDouble(),
+                    barGroups: [
+                      for (final day in daysWithData)
+                        BarChartGroupData(
+                          x: day,
+                          barsSpace: 3,
+                          barRods: [
+                            for (
+                              var index = 0;
+                              index < visibleTypes.length;
+                              index++
+                            )
+                              BarChartRodData(
+                                toY:
+                                    (countsByDayAndType[day]?[visibleTypes[index]] ??
+                                            0)
+                                        .toDouble(),
+                                width: 8,
+                                borderRadius: BorderRadius.circular(3),
+                                color: colors[index % colors.length],
+                              ),
+                          ],
+                        ),
+                    ],
+                    borderData: FlBorderData(show: false),
+                    gridData: FlGridData(
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: .45),
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 34,
+                          getTitlesWidget: (value, meta) {
+                            if (value == 0 || value == maxValue) {
+                              return Text(
+                                value.toInt().toString(),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 30,
+                          getTitlesWidget: (value, meta) {
+                            final day = value.toInt();
+                            if (daysWithData.contains(day)) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  '$day',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                    ),
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          final type = visibleTypes[rodIndex];
+                          final value = rod.toY.toInt();
+                          return BarTooltipItem(
+                            'Dia ${group.x}\n$type\n$value encomenda${value == 1 ? '' : 's'}',
+                            TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onInverseSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'O eixo X mostra apenas os dias com encomendas registradas.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < visibleEntries.length; index++)
+                _ChartLegendItem(
+                  color: colors[index % colors.length],
+                  label: visibleEntries[index].key,
+                  value: visibleEntries[index].value,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Color> _chartColors(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      scheme.primary,
+      scheme.secondary,
+      scheme.tertiary,
+      const Color(0xfff59e0b),
+      const Color(0xff6366f1),
+      const Color(0xffef4444),
+    ];
+  }
+}
+
+class _ChartLegendItem extends StatelessWidget {
+  const _ChartLegendItem({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  final Color color;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '($value)',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatShortMonth(DateTime value) {
+  const months = [
+    'jan',
+    'fev',
+    'mar',
+    'abr',
+    'mai',
+    'jun',
+    'jul',
+    'ago',
+    'set',
+    'out',
+    'nov',
+    'dez',
+  ];
+  return '${months[value.month - 1]}/${value.year.toString().substring(2)}';
+}
+
+class _ChartCard extends StatelessWidget {
+  const _ChartCard({
+    required this.title,
+    required this.empty,
+    required this.child,
+    this.height = 220,
+  });
+
+  final String title;
+  final bool empty;
+  final Widget child;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            if (empty)
+              const _EmptyCard(text: 'Sem dados para este mês.')
+            else
+              SizedBox(height: height, child: child),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -43,6 +43,7 @@ dependencies:
   # 2.3.x uses JNI/CMake and currently loops rebuilding build.ninja on Windows.
   path_provider_android: 2.2.23
   share_plus: ^13.2.0
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:
