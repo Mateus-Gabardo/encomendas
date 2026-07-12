@@ -75,28 +75,38 @@ class DeliveryList {
     required this.createdAt,
     this.items = const [],
     this.completedAt,
+    this.sentAt,
   });
 
   final String id;
   final String title;
   final DateTime createdAt;
   final DateTime? completedAt;
+  final DateTime? sentAt;
   final List<ParcelItem> items;
 
-  DeliveryList copyWith({List<ParcelItem>? items, DateTime? completedAt}) =>
-      DeliveryList(
-        id: id,
-        title: title,
-        createdAt: createdAt,
-        completedAt: completedAt ?? this.completedAt,
-        items: items ?? this.items,
-      );
+  bool get isSent => sentAt != null;
+  String get sentStatusLabel => isSent ? 'Enviado' : 'Não enviado';
+
+  DeliveryList copyWith({
+    List<ParcelItem>? items,
+    DateTime? completedAt,
+    DateTime? sentAt,
+  }) => DeliveryList(
+    id: id,
+    title: title,
+    createdAt: createdAt,
+    completedAt: completedAt ?? this.completedAt,
+    sentAt: sentAt ?? this.sentAt,
+    items: items ?? this.items,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
     'title': title,
     'createdAt': createdAt.toIso8601String(),
     'completedAt': completedAt?.toIso8601String(),
+    'sentAt': sentAt?.toIso8601String(),
     'items': items.map((item) => item.toJson()).toList(),
   };
 
@@ -107,6 +117,9 @@ class DeliveryList {
     completedAt: json['completedAt'] == null
         ? null
         : DateTime.parse(json['completedAt']! as String),
+    sentAt: json['sentAt'] == null
+        ? null
+        : DateTime.parse(json['sentAt']! as String),
     items: (json['items'] as List<Object?>? ?? const [])
         .map((item) => ParcelItem.fromJson(item! as Map<String, Object?>))
         .toList(),

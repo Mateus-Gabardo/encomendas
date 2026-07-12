@@ -199,7 +199,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                       duration: const Duration(milliseconds: 220),
                       child: !showPanel
                           ? const _CaptureHintPanel()
-                          : _QuickReviewPanel(
+                          : _QuickConfirmPanel(
                               key: ValueKey(latest.id),
                               item: latest,
                               controller: _nameController,
@@ -384,8 +384,8 @@ class _CaptureHintPanel extends StatelessWidget {
   }
 }
 
-class _QuickReviewPanel extends StatelessWidget {
-  const _QuickReviewPanel({
+class _QuickConfirmPanel extends StatelessWidget {
+  const _QuickConfirmPanel({
     super.key,
     required this.item,
     required this.controller,

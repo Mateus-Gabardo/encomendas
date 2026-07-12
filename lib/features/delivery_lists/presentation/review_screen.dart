@@ -72,7 +72,7 @@ class ReviewScreen extends StatelessWidget {
               icon: const Icon(Icons.article_outlined),
               label: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
-                child: Text('Revisar texto'),
+                child: Text('Gerar texto'),
               ),
             ),
           ),

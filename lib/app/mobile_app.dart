@@ -5,59 +5,92 @@ import '../features/delivery_lists/presentation/home_screen.dart';
 
 Widget buildApp() => const EstafetaMobileApp();
 
-class EstafetaMobileApp extends StatelessWidget {
+class EstafetaMobileApp extends StatefulWidget {
   const EstafetaMobileApp({super.key});
+
+  @override
+  State<EstafetaMobileApp> createState() => _EstafetaMobileAppState();
+}
+
+class _EstafetaMobileAppState extends State<EstafetaMobileApp> {
+  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Estafeta',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme:
-            ColorScheme.fromSeed(
-              seedColor: const Color(0xff25f4d0),
-              brightness: Brightness.dark,
-            ).copyWith(
-              primary: const Color(0xff25f4d0),
-              secondary: const Color(0xffffb15c),
-              tertiary: const Color(0xff36b8ff),
-              surface: const Color(0xff0b1621),
-              error: const Color(0xffff6b7a),
-            ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xff06111d),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          backgroundColor: Colors.transparent,
+      themeMode: _themeMode,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      home: _AnimatedSplash(
+        child: HomeScreen(
+          repository: LocalDeliveryRepository(),
+          themeMode: _themeMode,
+          onThemeModeChanged: (mode) => setState(() => _themeMode = mode),
         ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: const Color(0xff101d2a),
+      ),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return ThemeData(
+      colorScheme:
+          ColorScheme.fromSeed(
+            seedColor: const Color(0xff25f4d0),
+            brightness: brightness,
+          ).copyWith(
+            primary: const Color(0xff25f4d0),
+            secondary: const Color(0xffffb15c),
+            tertiary: const Color(0xff36b8ff),
+            surface: dark ? const Color(0xff0b1621) : const Color(0xfff7fbfb),
+            error: const Color(0xffff6b7a),
+          ),
+      useMaterial3: true,
+      scaffoldBackgroundColor: dark
+          ? const Color(0xff06111d)
+          : const Color(0xfff2f8f8),
+      appBarTheme: const AppBarTheme(
+        centerTitle: false,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        elevation: dark ? 0 : 1,
+        color: dark ? const Color(0xff101d2a) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xff25f4d0),
+          foregroundColor: const Color(0xff06201c),
+          disabledBackgroundColor: dark
+              ? const Color(0xff20313b)
+              : const Color(0xffd5e4e1),
+          disabledForegroundColor: dark
+              ? const Color(0xff7f9490)
+              : const Color(0xff6b7d79),
+          minimumSize: const Size(0, 52),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xff142433),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
-      home: _AnimatedSplash(
-        child: HomeScreen(repository: LocalDeliveryRepository()),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: dark
+              ? const Color(0xff25f4d0)
+              : const Color(0xff087568),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: dark ? const Color(0xff142433) : Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

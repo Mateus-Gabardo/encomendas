@@ -12,9 +12,16 @@ String _formatDateTime(DateTime value) =>
     '${value.minute.toString().padLeft(2, '0')}';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository});
+  const HomeScreen({
+    super.key,
+    required this.repository,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+  });
 
   final LocalDeliveryRepository repository;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -23,6 +30,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<DeliveryList> _lists = const [];
   int _retentionDays = 14;
+  int _knownNamesCount = 0;
   bool _loading = true;
   int _currentTab = 0;
 
@@ -42,10 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await widget.repository.deleteExpiredPhotos();
     final lists = await widget.repository.loadLists();
     final retention = await widget.repository.getRetentionDays();
+    final knownNames = await widget.repository.loadKnownNames();
     if (!mounted) return;
     setState(() {
       _lists = lists;
       _retentionDays = retention;
+      _knownNamesCount = knownNames.length;
       _loading = false;
     });
   }
@@ -144,8 +154,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _HomeDashboard(
         lists: _lists,
         loading: _loading,
-        retentionDays: _retentionDays,
+        knownNamesCount: _knownNamesCount,
         onNewList: _newList,
+        onOpenList: (list) => _openFlow(list, reviewOnly: true),
         onOpenLists: () => setState(() => _currentTab = 1),
       ),
       _ListsPage(
@@ -158,7 +169,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _SettingsPage(
         repository: widget.repository,
         retentionDays: _retentionDays,
+        themeMode: widget.themeMode,
         onChangeRetention: _changeRetention,
+        onThemeModeChanged: widget.onThemeModeChanged,
       ),
     ];
 
@@ -203,32 +216,22 @@ class _HomeDashboard extends StatelessWidget {
   const _HomeDashboard({
     required this.lists,
     required this.loading,
-    required this.retentionDays,
+    required this.knownNamesCount,
     required this.onNewList,
+    required this.onOpenList,
     required this.onOpenLists,
   });
 
   final List<DeliveryList> lists;
   final bool loading;
-  final int retentionDays;
+  final int knownNamesCount;
   final VoidCallback onNewList;
+  final ValueChanged<DeliveryList> onOpenList;
   final VoidCallback onOpenLists;
 
   @override
   Widget build(BuildContext context) {
-    final totalItems = lists.fold<int>(
-      0,
-      (sum, list) => sum + list.items.length,
-    );
-    final pending = lists.fold<int>(
-      0,
-      (sum, list) =>
-          sum +
-          list.items.where((item) {
-            final name = item.name?.trim() ?? '';
-            return name.isEmpty || item.status == ParcelStatus.needsReview;
-          }).length,
-    );
+    final sentLists = lists.where((list) => list.isSent).length;
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
       children: [
@@ -253,25 +256,25 @@ class _HomeDashboard extends StatelessWidget {
           children: [
             Expanded(
               child: _MetricCard(
-                icon: Icons.inventory_2_outlined,
-                label: 'Itens',
-                value: loading ? '...' : '$totalItems',
+                icon: Icons.badge_outlined,
+                label: 'Pessoas',
+                value: loading ? '...' : '$knownNamesCount',
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _MetricCard(
-                icon: Icons.warning_amber_outlined,
-                label: 'Revisar',
-                value: loading ? '...' : '$pending',
+                icon: Icons.list_alt_outlined,
+                label: 'Listas',
+                value: loading ? '...' : '${lists.length}',
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _MetricCard(
-                icon: Icons.auto_delete_outlined,
-                label: 'Fotos',
-                value: '${retentionDays}d',
+                icon: Icons.outgoing_mail,
+                label: 'Enviadas',
+                value: loading ? '...' : '$sentLists',
               ),
             ),
           ],
@@ -293,11 +296,21 @@ class _HomeDashboard extends StatelessWidget {
                   child: ListTile(
                     leading: const Icon(Icons.local_shipping_outlined),
                     title: Text(list.title),
-                    subtitle: Text(
-                      '${_formatDateTime(list.createdAt)} · ${list.items.length} encomendas',
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_formatDateTime(list.createdAt)} · '
+                          '${list.items.length} encomendas',
+                        ),
+                        _SentStatusText(
+                          sent: list.isSent,
+                          label: list.sentStatusLabel,
+                        ),
+                      ],
                     ),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: onOpenLists,
+                    onTap: () => onOpenList(list),
                   ),
                 ),
               ),
@@ -314,6 +327,7 @@ class _StartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: onNewList,
@@ -321,10 +335,16 @@ class _StartCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            colors: [Color(0xff0d2c3d), Color(0xff113a3a)],
+          gradient: LinearGradient(
+            colors: dark
+                ? const [Color(0xff0d2c3d), Color(0xff113a3a)]
+                : const [Color(0xffb8eee5), Color(0xffffd4a3)],
           ),
-          border: Border.all(color: scheme.primary.withValues(alpha: .32)),
+          border: Border.all(
+            color: dark
+                ? scheme.primary.withValues(alpha: .32)
+                : const Color(0xff1ba996).withValues(alpha: .55),
+          ),
         ),
         child: Row(
           children: [
@@ -348,7 +368,7 @@ class _StartCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 18),
+            Icon(Icons.arrow_forward_ios, size: 18, color: scheme.onSurface),
           ],
         ),
       ),
@@ -422,20 +442,24 @@ class _ListsPage extends StatelessWidget {
           const _EmptyCard(text: 'Nenhuma lista criada.')
         else
           ...lists.map((list) {
-            final pending = list.items.where((item) {
-              final name = item.name?.trim() ?? '';
-              return name.isEmpty || item.status == ParcelStatus.needsReview;
-            }).length;
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(
                   child: Icon(Icons.local_shipping_outlined),
                 ),
                 title: Text(list.title),
-                subtitle: Text(
-                  '${_formatDateTime(list.createdAt)} · '
-                  '${list.items.length} encomenda${list.items.length == 1 ? '' : 's'}'
-                  '${pending > 0 ? ' · $pending revisar' : ''}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_formatDateTime(list.createdAt)} · '
+                      '${list.items.length} encomenda${list.items.length == 1 ? '' : 's'}',
+                    ),
+                    _SentStatusText(
+                      sent: list.isSent,
+                      label: list.sentStatusLabel,
+                    ),
+                  ],
                 ),
                 onTap: () => onOpenList(list),
                 trailing: IconButton(
@@ -443,6 +467,8 @@ class _ListsPage extends StatelessWidget {
                   onPressed: () => onDeleteList(list),
                   icon: const Icon(Icons.delete_outline),
                 ),
+                isThreeLine: true,
+                contentPadding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
               ),
             );
           }),
@@ -534,12 +560,16 @@ class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.repository,
     required this.retentionDays,
+    required this.themeMode,
     required this.onChangeRetention,
+    required this.onThemeModeChanged,
   });
 
   final LocalDeliveryRepository repository;
   final int retentionDays;
+  final ThemeMode themeMode;
   final VoidCallback onChangeRetention;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +583,16 @@ class _SettingsPage extends StatelessWidget {
           ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 12),
+        Card(
+          child: SwitchListTile(
+            secondary: const Icon(Icons.contrast_outlined),
+            title: const Text('Tema escuro'),
+            subtitle: const Text('O tema claro é o padrão do app.'),
+            value: themeMode == ThemeMode.dark,
+            onChanged: (enabled) =>
+                onThemeModeChanged(enabled ? ThemeMode.dark : ThemeMode.light),
+          ),
+        ),
         Card(
           child: ListTile(
             leading: const Icon(Icons.auto_delete_outlined),
@@ -687,6 +727,27 @@ class _KnownNamesScreenState extends State<KnownNamesScreen> {
                   ),
               ],
             ),
+    );
+  }
+}
+
+class _SentStatusText extends StatelessWidget {
+  const _SentStatusText({required this.sent, required this.label});
+
+  final bool sent;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: sent ? const Color(0xff168a45) : const Color(0xffd97706),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

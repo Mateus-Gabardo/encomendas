@@ -1,6 +1,6 @@
 # Estafeta
 
-Aplicativo Flutter para registrar encomendas recebidas por uma atendente da comunidade. O fluxo principal é fotografar etiquetas, reconhecer o nome do destinatário por OCR local, revisar os itens e gerar um texto pronto para compartilhamento pelo sistema do celular, incluindo WhatsApp.
+Aplicativo Flutter para registrar encomendas recebidas por uma atendente da comunidade. O fluxo principal é fotografar etiquetas, reconhecer o nome do destinatário por OCR local, confirmar cada leitura na câmera e gerar um texto pronto para compartilhamento pelo sistema do celular, incluindo WhatsApp.
 
 ## Plataformas
 
@@ -10,7 +10,7 @@ O foco atual é Android com celular físico conectado. O projeto mantém iOS e W
 
 - `lib/app`: seleção da aplicação mobile/web, tema global e splash animada.
 - `lib/features/capture`: câmera, fila de captura, recorte da área do nome e OCR com Google ML Kit.
-- `lib/features/delivery_lists`: listas de entrega, revisão, layout de exportação, nomes conhecidos e persistência local.
+- `lib/features/delivery_lists`: listas de entrega, prévia de exportação, layout do texto, nomes conhecidos e persistência local.
 - `test`: testes unitários para extração de nomes e formatação do texto compartilhado.
 - `.agents/AGENTS.md`: guia de contribuição e contexto operacional para agentes.
 
@@ -20,7 +20,7 @@ O app usa `flutter_bloc` para separar estado da interface. O processamento de im
 
 Os dados são salvos no diretório privado de documentos do app, dentro de `estafeta/`:
 
-- `lists.json`: listas, itens, nomes, status e datas.
+- `lists.json`: listas, itens, nomes, status, data de criação e data de envio.
 - `photos/<listId>/`: fotos originais e recortes usados pelo OCR.
 - `retention_days.txt`: retenção configurada das fotos, hoje 7 ou 14 dias.
 - `known_names.json`: nomes já confirmados para ajudar o algoritmo em próximas leituras.
@@ -33,11 +33,17 @@ As fotos não são gravadas em `DCIM`, `Pictures` nem em diretórios públicos d
 1. A tela inicial permite iniciar uma nova lista ou abrir listas existentes.
 2. A câmera exibe uma faixa para centralizar o nome da etiqueta.
 3. Cada foto é salva, recortada e processada por OCR.
-4. O nome reconhecido pode ser corrigido imediatamente ou na revisão.
-5. A revisão permite editar/remover itens.
-6. A tela de prévia mostra o texto final editável antes do compartilhamento.
+4. O usuário confirma o nome no botão `Confirmo` ou descarta a foto no botão `X`.
+5. Ao concluir a captura, o app abre a lista de pessoas encontradas.
+6. A lista permite abrir a foto, editar nomes e remover itens.
+7. O botão `Gerar texto` abre a prévia editável antes do compartilhamento.
+8. Ao acionar o compartilhamento, a lista é marcada como enviada.
 
 Nomes repetidos são agrupados no texto final, por exemplo `Mateus Gabardo (2)`.
+
+As listas exibem a data de criação para diferenciar entregas do mesmo tipo e um status textual `Enviado` ou `Não enviado`. `Enviado` aparece em verde; `Não enviado`, em laranja. A tela inicial mostra a quantidade de pessoas conhecidas, total de listas e total de listas enviadas.
+
+O tema claro é o padrão. A aba “Ajustes” possui um seletor para alternar para tema escuro quando necessário.
 
 ## Algoritmo de identificação de nomes
 

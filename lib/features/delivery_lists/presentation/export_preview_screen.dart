@@ -60,7 +60,7 @@ class _ExportPreviewScreenState extends State<ExportPreviewScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
               children: [
                 Text(
-                  'Revise o texto antes de enviar.',
+                  'Edite o texto antes de enviar.',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
@@ -100,6 +100,13 @@ class _ExportPreviewScreenState extends State<ExportPreviewScreen> {
             ? null
             : box.localToGlobal(Offset.zero) & box.size,
       ),
+    );
+    await widget.repository.saveList(
+      widget.list.copyWith(sentAt: DateTime.now()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Lista marcada como enviada.')),
     );
   }
 }
