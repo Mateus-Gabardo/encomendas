@@ -43,26 +43,10 @@ class OcrService {
     final cropText = await _recognizer.processImage(
       InputImage.fromFilePath(cropPath),
     );
-    var rawText = cropText.text;
-    var extraction = _extractor.extract(rawText, knownNames: knownNames);
-
-    if (extraction.confidence < 0.7) {
-      final fullText = await _recognizer.processImage(
-        InputImage.fromFilePath(imagePath),
-      );
-      final fullExtraction = _extractor.extract(
-        fullText.text,
-        knownNames: knownNames,
-      );
-      if (fullExtraction.confidence > extraction.confidence) {
-        rawText = fullText.text;
-        extraction = fullExtraction;
-      }
-    }
     return OcrResult(
-      rawText: rawText,
+      rawText: cropText.text,
       cropPath: cropPath,
-      extraction: extraction,
+      extraction: _extractor.extract(cropText.text, knownNames: knownNames),
     );
   }
 

@@ -33,10 +33,13 @@ class DeliveryFlowScreen extends StatelessWidget {
         initialPhase: reviewOnly ? CapturePhase.review : CapturePhase.capturing,
       ),
       child: BlocBuilder<CaptureBloc, CaptureState>(
-        buildWhen: (previous, current) => previous.phase != current.phase,
+        buildWhen: (previous, current) =>
+            previous.phase != current.phase ||
+            previous.canReturnToReviewOnCancel !=
+                current.canReturnToReviewOnCancel,
         builder: (context, state) => state.phase == CapturePhase.review
             ? ReviewScreen(repository: repository)
-            : const CaptureScreen(),
+            : CaptureScreen(canReturnToReview: state.canReturnToReviewOnCancel),
       ),
     );
   }

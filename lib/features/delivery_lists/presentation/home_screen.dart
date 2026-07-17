@@ -30,6 +30,8 @@ String _formatMonth(DateTime value) {
   return '${months[value.month - 1]} ${value.year}';
 }
 
+String _formatRetentionDays(int days) => days == 0 ? 'Nunca' : '$days dias';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -143,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => SimpleDialog(
         title: const Text('Guardar fotos por'),
-        children: [7, 14]
+        children: [7, 14, 0]
             .map(
               (days) => SimpleDialogOption(
                 onPressed: () => Navigator.pop(context, days),
@@ -155,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           : Icons.circle_outlined,
                     ),
                     const SizedBox(width: 12),
-                    Text('$days dias'),
+                    Text(_formatRetentionDays(days)),
                   ],
                 ),
               ),
@@ -1216,7 +1218,7 @@ class _SettingsPage extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.auto_delete_outlined),
             title: const Text('Retenção das fotos'),
-            subtitle: Text('$retentionDays dias'),
+            subtitle: Text(_formatRetentionDays(retentionDays)),
             trailing: const Icon(Icons.chevron_right),
             onTap: onChangeRetention,
           ),

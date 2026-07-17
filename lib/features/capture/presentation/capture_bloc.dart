@@ -22,6 +22,10 @@ class CaptureResumed extends CaptureEvent {
   const CaptureResumed();
 }
 
+class CaptureCanceled extends CaptureEvent {
+  const CaptureCanceled();
+}
+
 class ParcelNameChanged extends CaptureEvent {
   const ParcelNameChanged(this.itemId, this.name);
   final String itemId;
@@ -36,10 +40,15 @@ class ParcelRemoved extends CaptureEvent {
 enum CapturePhase { capturing, finishing, review }
 
 class CaptureState {
-  const CaptureState({required this.list, this.phase = CapturePhase.capturing});
+  const CaptureState({
+    required this.list,
+    this.phase = CapturePhase.capturing,
+    this.canReturnToReviewOnCancel = false,
+  });
 
   final DeliveryList list;
   final CapturePhase phase;
+  final bool canReturnToReviewOnCancel;
 
   int get processingCount => list.items
       .where(
@@ -49,8 +58,16 @@ class CaptureState {
       )
       .length;
 
-  CaptureState copyWith({DeliveryList? list, CapturePhase? phase}) =>
-      CaptureState(list: list ?? this.list, phase: phase ?? this.phase);
+  CaptureState copyWith({
+    DeliveryList? list,
+    CapturePhase? phase,
+    bool? canReturnToReviewOnCancel,
+  }) => CaptureState(
+    list: list ?? this.list,
+    phase: phase ?? this.phase,
+    canReturnToReviewOnCancel:
+        canReturnToReviewOnCancel ?? this.canReturnToReviewOnCancel,
+  );
 }
 
 class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
@@ -74,10 +91,28 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         await _processPhoto(event, emit);
       case CaptureFinished():
         final completed = state.list.copyWith(completedAt: DateTime.now());
-        emit(state.copyWith(list: completed, phase: CapturePhase.review));
+        emit(
+          state.copyWith(
+            list: completed,
+            phase: CapturePhase.review,
+            canReturnToReviewOnCancel: false,
+          ),
+        );
         await repository.saveList(completed);
       case CaptureResumed():
-        emit(state.copyWith(phase: CapturePhase.capturing));
+        emit(
+          state.copyWith(
+            phase: CapturePhase.capturing,
+            canReturnToReviewOnCancel: true,
+          ),
+        );
+      case CaptureCanceled():
+        emit(
+          state.copyWith(
+            phase: CapturePhase.review,
+            canReturnToReviewOnCancel: false,
+          ),
+        );
       case ParcelNameChanged():
         final updated = _replaceItem(
           event.itemId,
@@ -126,7 +161,9 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
       id: id,
       imagePath: retainedPath,
       capturedAt: now,
-      expiresAt: now.add(Duration(days: retentionDays)),
+      expiresAt: retentionDays == 0
+          ? DateTime(9999, 12, 31)
+          : now.add(Duration(days: retentionDays)),
       status: ParcelStatus.processing,
     );
     var updated = state.list.copyWith(items: [...state.list.items, item]);

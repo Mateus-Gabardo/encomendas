@@ -103,11 +103,20 @@ class LocalDeliveryRepository {
       '${(await _root).path}${Platform.pathSeparator}retention_days.txt',
     );
     if (!await file.exists()) return 14;
-    return int.tryParse(await file.readAsString()) == 7 ? 7 : 14;
+    final value = int.tryParse(await file.readAsString());
+    return switch (value) {
+      0 => 0,
+      7 => 7,
+      _ => 14,
+    };
   }
 
   Future<void> setRetentionDays(int days) async {
-    final value = days == 7 ? 7 : 14;
+    final value = switch (days) {
+      0 => 0,
+      7 => 7,
+      _ => 14,
+    };
     final file = File(
       '${(await _root).path}${Platform.pathSeparator}retention_days.txt',
     );
@@ -179,6 +188,7 @@ class LocalDeliveryRepository {
   }
 
   Future<int> deleteExpiredPhotos() async {
+    if (await getRetentionDays() == 0) return 0;
     final lists = await loadLists();
     final now = DateTime.now();
     var deleted = 0;

@@ -8,7 +8,9 @@ import '../../delivery_lists/domain/delivery_models.dart';
 import 'capture_bloc.dart';
 
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key});
+  const CaptureScreen({super.key, required this.canReturnToReview});
+
+  final bool canReturnToReview;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
@@ -112,9 +114,19 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   void _finish() {
-    if (_capturedCount == 0 || _finishing) return;
+    final hasItems = context.read<CaptureBloc>().state.list.items.isNotEmpty;
+    if (!hasItems || _finishing) return;
     setState(() => _finishing = true);
     context.read<CaptureBloc>().add(const CaptureFinished());
+  }
+
+  void _close() {
+    if (widget.canReturnToReview) {
+      FocusScope.of(context).unfocus();
+      context.read<CaptureBloc>().add(const CaptureCanceled());
+      return;
+    }
+    Navigator.pop(context);
   }
 
   void _syncLastItem(CaptureState state) {
@@ -207,9 +219,14 @@ class _CaptureScreenState extends State<CaptureScreen>
                 left: 12,
                 right: 12,
                 child: _CaptureTopBar(
-                  canFinish: _capturedCount > 0,
+                  canFinish: context
+                      .watch<CaptureBloc>()
+                      .state
+                      .list
+                      .items
+                      .isNotEmpty,
                   finishing: _finishing,
-                  onClose: () => Navigator.pop(context),
+                  onClose: _close,
                   onFinish: _finish,
                 ),
               ),
@@ -428,44 +445,92 @@ class _NameGuideOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: Center(
-        child: FractionallySizedBox(
-          widthFactor: .84,
-          heightFactor: .22,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: .08),
-              border: Border.all(color: const Color(0xff06d6a0), width: 3),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black45,
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final guideWidth = constraints.maxWidth * .84;
+          final guideHeight = constraints.maxHeight * .22;
+          final horizontalMask = (constraints.maxWidth - guideWidth) / 2;
+          final verticalMask = (constraints.maxHeight - guideHeight) / 2;
+          final maskColor = Colors.black.withValues(alpha: .34);
+          return Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: verticalMask,
+                child: ColoredBox(color: maskColor),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: verticalMask,
+                child: ColoredBox(color: maskColor),
+              ),
+              Positioned(
+                left: 0,
+                top: verticalMask,
+                width: horizontalMask,
+                height: guideHeight,
+                child: ColoredBox(color: maskColor),
+              ),
+              Positioned(
+                right: 0,
+                top: verticalMask,
+                width: horizontalMask,
+                height: guideHeight,
+                child: ColoredBox(color: maskColor),
+              ),
+              Center(
+                child: SizedBox(
+                  width: guideWidth,
+                  height: guideHeight,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Container(
+                          height: 2,
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xffef4444,
+                            ).withValues(alpha: .72),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-            child: const Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: EdgeInsets.all(8),
+              ),
+              Align(
+                alignment: const Alignment(0, -.18),
                 child: DecoratedBox(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.all(Radius.circular(20)),
                   ),
-                  child: Padding(
+                  child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     child: Text(
-                      'Centralize o nome nesta faixa',
+                      'Enquadre o nome nesta area',
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
+            ],
+          );
+        },
       ),
     );
   }
