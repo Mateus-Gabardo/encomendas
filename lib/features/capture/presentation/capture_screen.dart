@@ -20,6 +20,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   Object? _error;
   bool _takingPhoto = false;
   bool _finishing = false;
+  bool _syncedInitialList = false;
   int _capturedCount = 0;
   String? _editingItemId;
   String? _confirmedItemId;
@@ -31,6 +32,18 @@ class _CaptureScreenState extends State<CaptureScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncedInitialList) return;
+    _syncedInitialList = true;
+    final latest = context.read<CaptureBloc>().state.list.items.lastOrNull;
+    if (latest == null) return;
+    _editingItemId = latest.id;
+    _confirmedItemId = latest.id;
+    _nameController.text = latest.name ?? '';
   }
 
   Future<void> _initializeCamera() async {
@@ -129,12 +142,26 @@ class _CaptureScreenState extends State<CaptureScreen>
   void _discardQuickPhoto() {
     final itemId = _editingItemId;
     if (itemId == null) return;
+    final items = context.read<CaptureBloc>().state.list.items;
+    final itemIndex = items.indexWhere((item) => item.id == itemId);
+    final previousItemId = itemIndex > 0 ? items[itemIndex - 1].id : null;
     context.read<CaptureBloc>().add(ParcelRemoved(itemId));
     setState(() {
       _capturedCount = _capturedCount > 0 ? _capturedCount - 1 : 0;
-      _confirmedItemId = null;
+      _editingItemId = previousItemId;
+      _confirmedItemId = previousItemId;
+      if (previousItemId == null) {
+        _nameController.clear();
+      }
     });
     FocusScope.of(context).unfocus();
+  }
+
+  void _openCapturedPhotos() {
+    final hasItems = context.read<CaptureBloc>().state.list.items.isNotEmpty;
+    if (!hasItems || _takingPhoto || _finishing) return;
+    FocusScope.of(context).unfocus();
+    context.read<CaptureBloc>().add(const CaptureFinished());
   }
 
   @override
@@ -180,7 +207,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                 left: 12,
                 right: 12,
                 child: _CaptureTopBar(
-                  capturedCount: _capturedCount,
+                  canFinish: _capturedCount > 0,
                   finishing: _finishing,
                   onClose: () => Navigator.pop(context),
                   onFinish: _finish,
@@ -215,43 +242,173 @@ class _CaptureScreenState extends State<CaptureScreen>
                 bottom: 28,
                 left: 0,
                 right: 0,
-                child: Center(
-                  child: Semantics(
-                    label: 'Tirar foto da etiqueta',
-                    button: true,
-                    child: InkWell(
-                      onTap: _takePhoto,
-                      customBorder: const CircleBorder(),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        width: 82,
-                        height: 82,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _takingPhoto
-                              ? Colors.grey
-                              : const Color(0xffffd166),
-                          border: Border.all(color: Colors.white, width: 5),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black54,
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
+                child: BlocBuilder<CaptureBloc, CaptureState>(
+                  builder: (context, state) {
+                    final totalCount = state.list.items.length;
+                    final latestItem = state.list.items.lastOrNull;
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 82,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _CapturedPhotosButton(
+                              count: totalCount,
+                              imagePath:
+                                  latestItem?.cropPath ?? latestItem?.imagePath,
+                              enabled:
+                                  totalCount > 0 &&
+                                  !_takingPhoto &&
+                                  !_finishing,
+                              onPressed: _openCapturedPhotos,
                             ),
-                          ],
+                          ),
                         ),
-                        child: _takingPhoto
-                            ? const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 3,
+                        const SizedBox(width: 24),
+                        Semantics(
+                          label: 'Tirar foto da etiqueta',
+                          button: true,
+                          child: InkWell(
+                            onTap: _takePhoto,
+                            customBorder: const CircleBorder(),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              width: 82,
+                              height: 82,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _takingPhoto
+                                    ? Colors.grey
+                                    : const Color(0xffffd166),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 5,
                                 ),
-                              )
-                            : const Icon(
-                                Icons.camera_alt,
-                                size: 36,
-                                color: Colors.black,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black54,
+                                    blurRadius: 18,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
                               ),
+                              child: _takingPhoto
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 3,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt,
+                                      size: 36,
+                                      color: Colors.black,
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 106),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedPhotosButton extends StatelessWidget {
+  const _CapturedPhotosButton({
+    required this.count,
+    required this.imagePath,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final int count;
+  final String? imagePath;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = imagePath == null ? null : File(imagePath!);
+    final backgroundColor = enabled
+        ? Colors.black.withValues(alpha: .68)
+        : Colors.black.withValues(alpha: .32);
+    final foregroundColor = enabled ? Colors.white : Colors.white54;
+    return Tooltip(
+      message: 'Ver fotos capturadas',
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 58,
+          height: 50,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white24),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black45,
+                blurRadius: 12,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(17),
+                  child: image != null && image.existsSync()
+                      ? ColorFiltered(
+                          colorFilter: enabled
+                              ? const ColorFilter.mode(
+                                  Colors.transparent,
+                                  BlendMode.multiply,
+                                )
+                              : ColorFilter.mode(
+                                  Colors.black.withValues(alpha: .35),
+                                  BlendMode.darken,
+                                ),
+                          child: Image.file(image, fit: BoxFit.cover),
+                        )
+                      : Center(
+                          child: Icon(
+                            Icons.photo_library_outlined,
+                            color: foregroundColor,
+                            size: 24,
+                          ),
+                        ),
+                ),
+              ),
+              Positioned(
+                top: -7,
+                right: -7,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: enabled ? const Color(0xffffd166) : Colors.grey,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: SizedBox.square(
+                    dimension: 24,
+                    child: Center(
+                      child: Text(
+                        '$count',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -316,13 +473,13 @@ class _NameGuideOverlay extends StatelessWidget {
 
 class _CaptureTopBar extends StatelessWidget {
   const _CaptureTopBar({
-    required this.capturedCount,
+    required this.canFinish,
     required this.finishing,
     required this.onClose,
     required this.onFinish,
   });
 
-  final int capturedCount;
+  final bool canFinish;
   final bool finishing;
   final VoidCallback onClose;
   final VoidCallback onFinish;
@@ -336,21 +493,18 @@ class _CaptureTopBar extends StatelessWidget {
           onPressed: finishing ? null : onClose,
           icon: const Icon(Icons.close),
         ),
-        Chip(
-          avatar: finishing
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.inventory_2_outlined, size: 18),
-          label: Text(
-            finishing
-                ? 'Processando imagens...'
-                : '$capturedCount foto${capturedCount == 1 ? '' : 's'}',
-          ),
-        ),
+        if (finishing)
+          const Chip(
+            avatar: SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            label: Text('Processando imagens...'),
+          )
+        else
+          const Spacer(),
         FilledButton(
-          onPressed: capturedCount == 0 || finishing ? null : onFinish,
+          onPressed: !canFinish || finishing ? null : onFinish,
           child: const Text('Concluir'),
         ),
       ],

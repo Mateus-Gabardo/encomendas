@@ -63,17 +63,37 @@ class ReviewScreen extends StatelessWidget {
                   },
                 ),
           bottomNavigationBar: SafeArea(
-            minimum: const EdgeInsets.all(16),
-            child: FilledButton.icon(
-              onPressed:
-                  list.items.any((item) => item.name?.trim().isNotEmpty == true)
-                  ? () => _previewExport(context, list)
-                  : null,
-              icon: const Icon(Icons.article_outlined),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: Text('Gerar texto'),
-              ),
+            minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        context.read<CaptureBloc>().add(const CaptureResumed()),
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Text('Adicionar fotos'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed:
+                        list.items.any(
+                          (item) => item.name?.trim().isNotEmpty == true,
+                        )
+                        ? () => _previewExport(context, list)
+                        : null,
+                    icon: const Icon(Icons.article_outlined),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Text('Gerar texto'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -155,37 +175,42 @@ class _EditParcelDialogState extends State<_EditParcelDialog> {
   @override
   Widget build(BuildContext context) {
     final file = File(widget.imagePath);
+    final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
+    final availableHeight = MediaQuery.sizeOf(context).height - viewInsets;
     return AlertDialog(
       title: const Text('Conferir encomenda'),
       content: SizedBox(
         width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (file.existsSync())
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(file, fit: BoxFit.contain),
-                )
-              else
-                const ListTile(
-                  leading: Icon(Icons.image_not_supported_outlined),
-                  title: Text('A foto já expirou ou não está disponível.'),
-                ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Nome da pessoa',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _save(),
+        height: availableHeight.clamp(360.0, 620.0),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: file.existsSync()
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(file, fit: BoxFit.contain),
+                      )
+                    : const ListTile(
+                        leading: Icon(Icons.image_not_supported_outlined),
+                        title: Text(
+                          'A foto já expirou ou não está disponível.',
+                        ),
+                      ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Nome da pessoa',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _save(),
+            ),
+          ],
         ),
       ),
       actions: [

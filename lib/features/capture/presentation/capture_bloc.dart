@@ -18,6 +18,10 @@ class CaptureFinished extends CaptureEvent {
   const CaptureFinished();
 }
 
+class CaptureResumed extends CaptureEvent {
+  const CaptureResumed();
+}
+
 class ParcelNameChanged extends CaptureEvent {
   const ParcelNameChanged(this.itemId, this.name);
   final String itemId;
@@ -72,6 +76,8 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
         final completed = state.list.copyWith(completedAt: DateTime.now());
         emit(state.copyWith(list: completed, phase: CapturePhase.review));
         await repository.saveList(completed);
+      case CaptureResumed():
+        emit(state.copyWith(phase: CapturePhase.capturing));
       case ParcelNameChanged():
         final updated = _replaceItem(
           event.itemId,
@@ -149,10 +155,6 @@ class CaptureBloc extends Bloc<CaptureEvent, CaptureState> {
     updated = _replaceItem(id, (_) => item);
     emit(state.copyWith(list: updated));
     await repository.saveList(updated);
-    final name = item.name?.trim();
-    if (name != null && name.isNotEmpty) {
-      await repository.addKnownName(name);
-    }
   }
 
   DeliveryList _replaceItem(
