@@ -90,6 +90,7 @@ class NameExtractor {
   String _clean(String value) => value
       .replaceAll(RegExp(r'\s+'), ' ')
       .replaceAll(RegExp(r'^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ)]+$'), '')
+      .replaceAll(RegExp(r'(?<=[A-Za-zÀ-ÿ])[|,;:](?=[A-Za-zÀ-ÿ])'), ' ')
       .trim();
 
   String _normalize(String value) => value
@@ -102,15 +103,15 @@ class NameExtractor {
       .replaceAll('ç', 'c');
 
   String? _matchKnownName(String text, Iterable<String> knownNames) {
-    final normalizedText = _normalize(text).replaceAll(RegExp(r'\s+'), ' ');
+    final normalizedText = _normalize(text)
+        .replaceAll(RegExp(r'[^a-z\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
     String? best;
     var bestLength = 0;
     for (final name in knownNames) {
       final cleaned = _clean(name);
       if (!_looksLikeName(cleaned)) continue;
-      final normalizedName = _normalize(
-        cleaned,
-      ).replaceAll(RegExp(r'\s+'), ' ');
+      final normalizedName = _normalize(cleaned).replaceAll(RegExp(r'\s+'), ' ');
       if (normalizedText.contains(normalizedName) &&
           normalizedName.length > bestLength) {
         best = _titleCase(cleaned);

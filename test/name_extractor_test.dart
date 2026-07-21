@@ -24,4 +24,13 @@ void main() {
     final result = extractor.extract('47243498645\nCEP: 89199000\nNF: 205291');
     expect(result.name, isNull);
   });
+
+  test('reconhece nome conhecido apesar de pontuação introduzida pelo OCR', () {
+    final result = extractor.extract(
+      'DESTINATARIO\nMATEUS|GABARDO, LEMOS',
+      knownNames: ['Mateus Gabardo Lemos'],
+    );
+    expect(result.name, 'Mateus Gabardo Lemos');
+    expect(result.confidence, .98);
+  });
 }

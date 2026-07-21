@@ -33,33 +33,74 @@ class OcrService {
     Iterable<String> knownNames = const [],
   }) async {
     final bytes = await File(imagePath).readAsBytes();
-    final croppedBytes = await Isolate.run(() => _cropGuide(bytes));
+    final crops = await Isolate.run(() => _createGuideCrops(bytes));
     final cropPath = imagePath.replaceFirst(
       RegExp(r'\.jpe?g$', caseSensitive: false),
       '_crop.jpg',
     );
-    await File(cropPath).writeAsBytes(croppedBytes, flush: true);
+    await File(cropPath).writeAsBytes(crops.original, flush: true);
 
     final cropText = await _recognizer.processImage(
       InputImage.fromFilePath(cropPath),
     );
+    var rawText = cropText.text;
+    var extraction = _extractor.extract(rawText, knownNames: knownNames);
+
+    // A versão com contraste reforçado recupera nomes em etiquetas pouco nítidas
+    // sem ampliar a área examinada além do guia mostrado na câmera.
+    if (extraction.confidence < .9) {
+      final enhancedPath = imagePath.replaceFirst(
+        RegExp(r'\.jpe?g$', caseSensitive: false),
+        '_crop_enhanced.jpg',
+      );
+      try {
+        await File(enhancedPath).writeAsBytes(crops.enhanced, flush: true);
+        final enhancedText = await _recognizer.processImage(
+          InputImage.fromFilePath(enhancedPath),
+        );
+        final enhancedExtraction = _extractor.extract(
+          enhancedText.text,
+          knownNames: knownNames,
+        );
+        if (enhancedExtraction.confidence > extraction.confidence) {
+          rawText = enhancedText.text;
+          extraction = enhancedExtraction;
+        }
+      } finally {
+        final enhancedFile = File(enhancedPath);
+        if (await enhancedFile.exists()) await enhancedFile.delete();
+      }
+    }
     return OcrResult(
-      rawText: cropText.text,
+      rawText: rawText,
       cropPath: cropPath,
-      extraction: _extractor.extract(cropText.text, knownNames: knownNames),
+      extraction: extraction,
     );
   }
 
   Future<void> close() => _recognizer.close();
 
-  static Uint8List _cropGuide(Uint8List bytes) {
-    final source = img.decodeImage(bytes);
-    if (source == null) return bytes;
+  static _GuideCrops _createGuideCrops(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return _GuideCrops(bytes, bytes);
+    final source = img.bakeOrientation(decoded);
     final x = (source.width * 0.08).round();
-    final y = (source.height * 0.38).round();
+    final y = (source.height * 0.39).round();
     final width = (source.width * 0.84).round();
-    final height = (source.height * 0.24).round();
+    final height = (source.height * 0.22).round();
     final crop = img.copyCrop(source, x: x, y: y, width: width, height: height);
-    return Uint8List.fromList(img.encodeJpg(crop, quality: 90));
+    final original = Uint8List.fromList(img.encodeJpg(crop, quality: 94));
+    final enhanced = img.adjustColor(crop, contrast: 1.35, brightness: 1.05);
+    return _GuideCrops(
+      original,
+      Uint8List.fromList(img.encodeJpg(enhanced, quality: 94)),
+    );
   }
+}
+
+class _GuideCrops {
+  const _GuideCrops(this.original, this.enhanced);
+
+  final Uint8List original;
+  final Uint8List enhanced;
 }
