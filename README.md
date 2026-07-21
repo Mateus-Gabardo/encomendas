@@ -85,3 +85,28 @@ flutter run
 ```
 
 Use `flutter run` com um Android físico conectado e depuração USB habilitada.
+
+## Releases automatizadas
+
+Os releases são publicados pelo GitHub Actions quando um commit chega à branch
+`master`. O `semantic-release` calcula a versão a partir dos Conventional
+Commits, atualiza `pubspec.yaml` e `CHANGELOG.md`, cria a tag, gera o APK
+assinado e o anexa à GitHub Release.
+
+Use estes tipos de commit:
+
+- `fix: ...` gera uma versão de correção, como `1.0.1`.
+- `feat: ...` gera uma versão menor, como `1.1.0`.
+- `feat!: ...` ou `BREAKING CHANGE:` gera uma versão principal, como `2.0.0`.
+
+Antes do primeiro release automático, configure os Secrets do repositório no
+GitHub:
+
+- `ANDROID_KEYSTORE_BASE64`: conteúdo Base64 do arquivo `.jks` de assinatura.
+- `ANDROID_KEYSTORE_PASSWORD`: senha do arquivo `.jks`.
+- `ANDROID_KEY_ALIAS`: alias da chave de assinatura.
+- `ANDROID_KEY_PASSWORD`: senha da chave de assinatura.
+
+O token `GITHUB_TOKEN` é fornecido automaticamente pelo Actions. A workflow
+precisa da permissão **Read and write permissions** em *Settings > Actions >
+General*.
