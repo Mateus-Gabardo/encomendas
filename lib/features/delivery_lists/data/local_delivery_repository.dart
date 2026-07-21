@@ -104,23 +104,18 @@ class LocalDeliveryRepository {
     );
     if (!await file.exists()) return 14;
     final value = int.tryParse(await file.readAsString());
-    return switch (value) {
-      0 => 0,
-      7 => 7,
-      _ => 14,
-    };
+    if (value == null || value < 0) return 14;
+    return value;
   }
 
   Future<void> setRetentionDays(int days) async {
-    final value = switch (days) {
-      0 => 0,
-      7 => 7,
-      _ => 14,
-    };
+    if (days < 0) {
+      throw ArgumentError.value(days, 'days', 'Não pode ser negativo.');
+    }
     final file = File(
       '${(await _root).path}${Platform.pathSeparator}retention_days.txt',
     );
-    await file.writeAsString('$value', flush: true);
+    await file.writeAsString('$days', flush: true);
   }
 
   Future<File> _knownNamesFile() async =>

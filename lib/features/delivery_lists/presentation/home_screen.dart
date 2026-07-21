@@ -1,4 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../data/local_delivery_repository.dart';
@@ -30,7 +31,11 @@ String _formatMonth(DateTime value) {
   return '${months[value.month - 1]} ${value.year}';
 }
 
-String _formatRetentionDays(int days) => days == 0 ? 'Nunca' : '$days dias';
+String _formatRetentionDays(int days) => switch (days) {
+  0 => 'Manter permanentemente',
+  1 => '1 dia',
+  _ => '$days dias',
+};
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -143,27 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _changeRetention() async {
     final selected = await showDialog<int>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Guardar fotos por'),
-        children: [7, 14, 0]
-            .map(
-              (days) => SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, days),
-                child: Row(
-                  children: [
-                    Icon(
-                      days == _retentionDays
-                          ? Icons.check_circle
-                          : Icons.circle_outlined,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(_formatRetentionDays(days)),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
-      ),
+      builder: (context) => _RetentionDialog(initialDays: _retentionDays),
     );
     if (selected == null) return;
     await widget.repository.setRetentionDays(selected);
@@ -1175,6 +1160,95 @@ class _ExportLayoutPageState extends State<_ExportLayoutPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Layout salvo.')));
   }
+}
+
+class _RetentionDialog extends StatefulWidget {
+  const _RetentionDialog({required this.initialDays});
+
+  final int initialDays;
+
+  @override
+  State<_RetentionDialog> createState() => _RetentionDialogState();
+}
+
+class _RetentionDialogState extends State<_RetentionDialog> {
+  late bool _keepPermanently;
+  late int _selectedDays;
+  late final FixedExtentScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _keepPermanently = widget.initialDays == 0;
+    _selectedDays = widget.initialDays == 0
+        ? 14
+        : widget.initialDays.clamp(1, 3650).toInt();
+    _scrollController = FixedExtentScrollController(
+      initialItem: _selectedDays - 1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (_keepPermanently) {
+      Navigator.pop(context, 0);
+      return;
+    }
+    Navigator.pop(context, _selectedDays);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Retenção das fotos'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('As fotos serão excluídas após o período selecionado.'),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 160,
+          child: Opacity(
+            opacity: _keepPermanently ? .45 : 1,
+            child: IgnorePointer(
+              ignoring: _keepPermanently,
+              child: CupertinoPicker.builder(
+                scrollController: _scrollController,
+                itemExtent: 40,
+                onSelectedItemChanged: (index) =>
+                    setState(() => _selectedDays = index + 1),
+                childCount: 3650,
+                itemBuilder: (context, index) => Center(
+                  child: Text('${index + 1} ${index == 0 ? 'dia' : 'dias'}'),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Manter fotos permanentemente'),
+          value: _keepPermanently,
+          onChanged: (value) => setState(() {
+            _keepPermanently = value ?? false;
+          }),
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Salvar')),
+    ],
+  );
 }
 
 class _SettingsPage extends StatelessWidget {

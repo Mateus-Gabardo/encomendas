@@ -30,10 +30,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            // O ML Kit instancia componentes por reflexão. O R8 remove partes
+            // necessárias no APK otimizado e o OCR falha somente em release.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

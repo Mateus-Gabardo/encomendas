@@ -22,7 +22,7 @@ Os dados são salvos no diretório privado de documentos do app, dentro de `esta
 
 - `lists.json`: listas, itens, nomes, status, data de criação e data de envio.
 - `photos/<listId>/`: fotos originais e recortes usados pelo OCR.
-- `retention_days.txt`: retenção configurada das fotos, hoje 7 ou 14 dias.
+- `retention_days.txt`: retenção configurada das fotos em dias; `0` mantém as fotos permanentemente.
 - `known_names.json`: nomes já confirmados para ajudar o algoritmo em próximas leituras.
 - `export_template.txt`: modelo do texto de compartilhamento.
 
