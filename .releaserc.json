@@ -1,0 +1,28 @@
+{
+  "branches": ["master"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "node tool/prepare_release.mjs ${nextRelease.version} && flutter build apk --release && mkdir -p release-assets && cp build/app/outputs/flutter-apk/app-release.apk release-assets/Estafeta-v${nextRelease.version}.apk"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "pubspec.yaml"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\\n\\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": ["release-assets/*.apk"]
+      }
+    ]
+  ]
+}
